@@ -26,7 +26,6 @@ func main() {
 
 	apiCfg := apiConfig{
 		fileserverHits: 0,
-		currentId:      1,
 		db:             instant,
 	}
 
@@ -38,6 +37,7 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("GET /api/reset", apiCfg.handlerReset)
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
+	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirpById)
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerPostChirps)
 
 	//Namespace : admin

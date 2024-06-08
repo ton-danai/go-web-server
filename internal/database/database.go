@@ -11,7 +11,7 @@ import (
 type DB struct {
 	path      string
 	mux       *sync.RWMutex
-	data      []Chirp
+	data      map[int]Chirp
 	currentId int
 }
 
@@ -28,7 +28,7 @@ func New(path string) (*DB, error) {
 	db := &DB{
 		path: path,
 		mux:  new(sync.RWMutex),
-		data: []Chirp{},
+		data: map[int]Chirp{},
 	}
 
 	err := db.ensureDB()
@@ -43,22 +43,15 @@ func New(path string) (*DB, error) {
 		return nil, loadError
 	}
 
-	v := make([]Chirp, 0, len(data.Chirps))
-	log.Printf("[]Chirp : %+v", v)
-
 	maxKey := 0
-	for key, value := range data.Chirps {
-		v = append(v, value)
+	for key := range data.Chirps {
+		// v = append(v, value)
 		if key > maxKey {
 			maxKey = key
 		}
 	}
 
-	sort.Slice(v, func(i, j int) bool {
-		return v[i].Id < v[j].Id
-	})
-
-	db.data = v
+	db.data = data.Chirps
 	db.currentId = maxKey
 
 	log.Printf("MaxKey %d", maxKey)
@@ -68,13 +61,10 @@ func New(path string) (*DB, error) {
 // CreateChirp creates a new chirp and saves it to disk
 func (db *DB) CreateChirp(body string) (Chirp, error) {
 	nextId := db.currentId + 1
-	log.Printf("Generate ID : %d ", nextId)
 	data := Chirp{
 		Id:   nextId,
 		Body: body,
 	}
-
-	temp := append(db.data, data)
 
 	dbStructure := DBChirps{
 		Chirps: map[int]Chirp{},
@@ -84,19 +74,32 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 		dbStructure.Chirps[item.Id] = item
 	}
 
+	dbStructure.Chirps[nextId] = data
+
 	err := db.writeDB(dbStructure)
 	if err != nil {
 		return Chirp{}, err
 	}
 
-	db.data = temp
+	db.data = dbStructure.Chirps
 	db.currentId = nextId
 	return data, nil
 }
 
 // GetChirps returns all chirps in the database
 func (db *DB) GetChirps() ([]Chirp, error) {
-	return db.data, nil
+	v := make([]Chirp, 0, len(db.data))
+
+	sort.Slice(v, func(i, j int) bool {
+		return v[i].Id < v[j].Id
+	})
+
+	return v, nil
+}
+
+func (db *DB) GetChirpById(id int) (Chirp, bool) {
+	data, found := db.data[id]
+	return data, found
 }
 
 // ensureDB creates a new database file if it doesn't exist

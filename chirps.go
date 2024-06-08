@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 func (cfg *apiConfig) handlerPostChirps(w http.ResponseWriter, r *http.Request) {
@@ -34,14 +35,10 @@ func (cfg *apiConfig) handlerPostChirps(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	cfg.currentId++
-
 	respondWithJSON(w, http.StatusCreated, responseData)
 }
 
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-
 	responseData, err := cfg.db.GetChirps()
 
 	if err != nil {
@@ -50,4 +47,22 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, responseData)
+}
+
+func (cfg *apiConfig) handlerGetChirpById(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := strconv.Atoi(r.PathValue("chirpID"))
+
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Chirp ID is not integer")
+		return
+	}
+
+	result, found := cfg.db.GetChirpById(chirpID)
+
+	if !found {
+		respondWithError(w, http.StatusNotFound, "Not Found")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, result)
 }
