@@ -4,18 +4,30 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"github.com/ton-danai/go-web-server/internal/database"
 )
 
 type apiConfig struct {
 	fileserverHits int
+	currentId      int
+	db             *database.DB
 }
 
 func main() {
 	const filepathRoot = "."
 	const port = "8080"
 
+	instant, serverError := database.New("./database.json")
+	if serverError != nil {
+		log.Println("Cannot init database")
+		return
+	}
+
 	apiCfg := apiConfig{
 		fileserverHits: 0,
+		currentId:      1,
+		db:             instant,
 	}
 
 	mux := http.NewServeMux()
@@ -25,7 +37,8 @@ func main() {
 	// Namesapce : api
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("GET /api/reset", apiCfg.handlerReset)
-	mux.HandleFunc("POST /api/validate_chirp", apiCfg.handlerValidationChirp)
+	mux.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
+	mux.HandleFunc("POST /api/chirps", apiCfg.handlerPostChirps)
 
 	//Namespace : admin
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerAdminMetrics)
@@ -56,7 +69,7 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	dat, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Error marshalling JSON: %s", err)
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	w.WriteHeader(code)
