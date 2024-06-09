@@ -5,19 +5,23 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/ton-danai/go-web-server/internal/database"
 )
 
 type apiConfig struct {
 	fileserverHits int
-	currentId      int
 	db             *database.DB
+	jwtSecret      string
 }
 
 func main() {
 	const filepathRoot = "."
 	const port = "8080"
+	// by default, godotenv will look for a file named .env in the current directory
+	godotenv.Load()
 
 	instant, serverError := database.New("./database.json")
 	if serverError != nil {
@@ -25,9 +29,11 @@ func main() {
 		return
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET")
 	apiCfg := apiConfig{
 		fileserverHits: 0,
 		db:             instant,
+		jwtSecret:      jwtSecret,
 	}
 
 	mux := http.NewServeMux()
@@ -45,8 +51,12 @@ func main() {
 
 	// Namesapce : api/users
 	mux.HandleFunc("POST /api/users", apiCfg.handlerPostUsers)
+	mux.HandleFunc("PUT /api/users", apiCfg.handlerPutUsers)
 
-	//Namespace : admin
+	// Namespace : api/login
+	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
+
+	// Namespace : admin
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerAdminMetrics)
 
 	srv := &http.Server{
