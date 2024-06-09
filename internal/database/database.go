@@ -13,13 +13,15 @@ type DB struct {
 	mux            *sync.RWMutex
 	chirps         map[int]Chirp
 	users          map[int]User
+	refreshToken   map[int]RefreshToken
 	currentChripId int
 	currentUserId  int
 }
 
 type DBStructure struct {
-	Chirps map[int]Chirp `json:"chirps"`
-	Users  map[int]User  `json:"users"`
+	Chirps        map[int]Chirp        `json:"chirps"`
+	Users         map[int]User         `json:"users"`
+	RefreshTokens map[int]RefreshToken `json:"refresh_tokens"`
 }
 
 type User struct {
@@ -33,12 +35,19 @@ type Chirp struct {
 	Body string `json:"body"`
 }
 
+type RefreshToken struct {
+	UserId int    `json:"user_id"`
+	Token  string `json:"token"`
+	ExpAt  int64  `json:"exp_at"`
+}
+
 func New(path string) (*DB, error) {
 	db := &DB{
-		path:   path,
-		mux:    new(sync.RWMutex),
-		chirps: map[int]Chirp{},
-		users:  map[int]User{},
+		path:         path,
+		mux:          new(sync.RWMutex),
+		chirps:       map[int]Chirp{},
+		users:        map[int]User{},
+		refreshToken: map[int]RefreshToken{},
 	}
 
 	err := db.ensureDB()
@@ -58,6 +67,8 @@ func New(path string) (*DB, error) {
 
 	db.chirps = data.Chirps
 	db.users = data.Users
+	db.refreshToken = data.RefreshTokens
+
 	db.currentChripId = maxKeyChirps
 	db.currentUserId = maxKeyUsers
 
@@ -72,14 +83,7 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 		Body: body,
 	}
 
-	dbStructure := DBStructure{
-		Chirps: map[int]Chirp{},
-		Users:  map[int]User{},
-	}
-
-	dbStructure.Chirps = db.chirps
-	dbStructure.Users = db.users
-
+	dbStructure := db.mapDBStructure()
 	dbStructure.Chirps[nextId] = data
 
 	err := db.writeDB(dbStructure)
@@ -108,6 +112,18 @@ func (db *DB) GetChirpById(id int) (Chirp, bool) {
 	return data, found
 }
 
+func (db *DB) mapDBStructure() DBStructure {
+	dbStructure := DBStructure{
+		Chirps: map[int]Chirp{},
+		Users:  map[int]User{},
+	}
+	dbStructure.Chirps = db.chirps
+	dbStructure.Users = db.users
+	dbStructure.RefreshTokens = db.refreshToken
+
+	return dbStructure
+}
+
 // ensureDB creates a new database file if it doesn't exist
 func (db *DB) ensureDB() error {
 	db.mux.Lock()
@@ -129,8 +145,9 @@ func (db *DB) ensureDB() error {
 
 func (db *DB) createDB() error {
 	dbStructure := DBStructure{
-		Chirps: map[int]Chirp{},
-		Users:  map[int]User{},
+		Chirps:        map[int]Chirp{},
+		Users:         map[int]User{},
+		RefreshTokens: map[int]RefreshToken{},
 	}
 	rawJsonString, err := json.Marshal(dbStructure)
 
@@ -151,8 +168,9 @@ func (db *DB) loadDB() (DBStructure, error) {
 	db.mux.Lock()
 	defer db.mux.Unlock()
 	result := DBStructure{
-		Chirps: map[int]Chirp{},
-		Users:  map[int]User{},
+		Chirps:        map[int]Chirp{},
+		Users:         map[int]User{},
+		RefreshTokens: map[int]RefreshToken{},
 	}
 
 	data, err := os.ReadFile(db.path)

@@ -6,7 +6,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func (db *DB) findUserByEmail(email string) (User, bool) {
+func (db *DB) FindUserByEmail(email string) (User, bool) {
 	for _, value := range db.users {
 		if value.Email == email {
 			return value, true
@@ -30,13 +30,7 @@ func (db *DB) CreateUser(email, password string) (User, error) {
 		Password: string(hashPassword),
 	}
 
-	dbStructure := DBStructure{
-		Chirps: map[int]Chirp{},
-		Users:  map[int]User{},
-	}
-
-	dbStructure.Chirps = db.chirps
-	dbStructure.Users = db.users
+	dbStructure := db.mapDBStructure()
 
 	dbStructure.Users[nextId] = data
 
@@ -65,14 +59,7 @@ func (db *DB) UpdateUser(id int, email, password string) (User, error) {
 	data.Email = email
 	data.Password = string(hashPassword)
 
-	dbStructure := DBStructure{
-		Chirps: map[int]Chirp{},
-		Users:  map[int]User{},
-	}
-
-	dbStructure.Chirps = db.chirps
-	dbStructure.Users = db.users
-
+	dbStructure := db.mapDBStructure()
 	dbStructure.Users[id] = data
 
 	err := db.writeDB(dbStructure)

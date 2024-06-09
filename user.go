@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -58,16 +57,9 @@ func (cfg *apiConfig) handlerPutUsers(w http.ResponseWriter, r *http.Request) {
 		Email string `json:"email"`
 	}
 
-	authString := r.Header.Get("Authorization")
-
-	if authString == "" {
-		respondWithError(w, http.StatusUnauthorized, "token not found")
-		return
-	}
-
-	arr := strings.Split(authString, " ")
-	if arr[0] != "Bearer" {
-		respondWithError(w, http.StatusUnauthorized, "token not found")
+	authToken, authtokenError := getTokenFromHeader(r)
+	if authtokenError != nil {
+		respondWithError(w, http.StatusUnauthorized, "")
 		return
 	}
 
@@ -80,7 +72,7 @@ func (cfg *apiConfig) handlerPutUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := jwt.ParseWithClaims(arr[1], &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(authToken, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Method)
 		}
