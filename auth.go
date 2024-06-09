@@ -158,10 +158,6 @@ func (cfg *apiConfig) generateRefreshToken() (string, error) {
 }
 
 func getTokenFromHeader(r *http.Request) (string, error) {
-	type responseModel struct {
-		Token string `json:"token"`
-	}
-
 	authString := r.Header.Get("Authorization")
 
 	if authString == "" {
