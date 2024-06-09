@@ -9,14 +9,22 @@ import (
 )
 
 type DB struct {
-	path      string
-	mux       *sync.RWMutex
-	data      map[int]Chirp
-	currentId int
+	path           string
+	mux            *sync.RWMutex
+	chirps         map[int]Chirp
+	users          map[int]User
+	currentChripId int
+	currentUserId  int
 }
 
-type DBChirps struct {
+type DBStructure struct {
 	Chirps map[int]Chirp `json:"chirps"`
+	Users  map[int]User  `json:"users"`
+}
+
+type User struct {
+	Id    int    `json:"id"`
+	Email string `json:"email"`
 }
 
 type Chirp struct {
@@ -26,9 +34,10 @@ type Chirp struct {
 
 func New(path string) (*DB, error) {
 	db := &DB{
-		path: path,
-		mux:  new(sync.RWMutex),
-		data: map[int]Chirp{},
+		path:   path,
+		mux:    new(sync.RWMutex),
+		chirps: map[int]Chirp{},
+		users:  map[int]User{},
 	}
 
 	err := db.ensureDB()
@@ -43,36 +52,32 @@ func New(path string) (*DB, error) {
 		return nil, loadError
 	}
 
-	maxKey := 0
-	for key := range data.Chirps {
-		// v = append(v, value)
-		if key > maxKey {
-			maxKey = key
-		}
-	}
+	maxKeyChirps := getMaxId(data.Chirps)
+	maxKeyUsers := getMaxId(data.Users)
 
-	db.data = data.Chirps
-	db.currentId = maxKey
+	db.chirps = data.Chirps
+	db.users = data.Users
+	db.currentChripId = maxKeyChirps
+	db.currentUserId = maxKeyUsers
 
-	log.Printf("MaxKey %d", maxKey)
 	return db, nil
 }
 
 // CreateChirp creates a new chirp and saves it to disk
 func (db *DB) CreateChirp(body string) (Chirp, error) {
-	nextId := db.currentId + 1
+	nextId := db.currentChripId + 1
 	data := Chirp{
 		Id:   nextId,
 		Body: body,
 	}
 
-	dbStructure := DBChirps{
+	dbStructure := DBStructure{
 		Chirps: map[int]Chirp{},
+		Users:  map[int]User{},
 	}
 
-	for _, item := range db.data {
-		dbStructure.Chirps[item.Id] = item
-	}
+	dbStructure.Chirps = db.chirps
+	dbStructure.Users = db.users
 
 	dbStructure.Chirps[nextId] = data
 
@@ -81,14 +86,14 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 		return Chirp{}, err
 	}
 
-	db.data = dbStructure.Chirps
-	db.currentId = nextId
+	db.chirps = dbStructure.Chirps
+	db.currentChripId = nextId
 	return data, nil
 }
 
 // GetChirps returns all chirps in the database
 func (db *DB) GetChirps() ([]Chirp, error) {
-	v := make([]Chirp, 0, len(db.data))
+	v := make([]Chirp, 0, len(db.chirps))
 
 	sort.Slice(v, func(i, j int) bool {
 		return v[i].Id < v[j].Id
@@ -98,7 +103,7 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 }
 
 func (db *DB) GetChirpById(id int) (Chirp, bool) {
-	data, found := db.data[id]
+	data, found := db.chirps[id]
 	return data, found
 }
 
@@ -109,18 +114,44 @@ func (db *DB) ensureDB() error {
 	_, err := os.Stat(db.path)
 	if err != nil {
 		_, createError := os.Create(db.path)
-		return createError
+		if createError != nil {
+			return createError
+		}
+
+		dbError := db.createDB()
+
+		return dbError
 	}
 
 	return nil
 }
 
+func (db *DB) createDB() error {
+	dbStructure := DBStructure{
+		Chirps: map[int]Chirp{},
+		Users:  map[int]User{},
+	}
+	rawJsonString, err := json.Marshal(dbStructure)
+
+	if err != nil {
+		return err
+	}
+
+	writeErr := os.WriteFile(db.path, rawJsonString, 0666)
+	if writeErr != nil {
+		return writeErr
+	}
+
+	return err
+}
+
 // loadDB reads the database file into memory
-func (db *DB) loadDB() (DBChirps, error) {
+func (db *DB) loadDB() (DBStructure, error) {
 	db.mux.Lock()
 	defer db.mux.Unlock()
-	result := DBChirps{
+	result := DBStructure{
 		Chirps: map[int]Chirp{},
+		Users:  map[int]User{},
 	}
 
 	data, err := os.ReadFile(db.path)
@@ -141,7 +172,7 @@ func (db *DB) loadDB() (DBChirps, error) {
 }
 
 // writeDB writes the database file to disk
-func (db *DB) writeDB(dbStructure DBChirps) error {
+func (db *DB) writeDB(dbStructure DBStructure) error {
 	db.mux.Lock()
 	defer db.mux.Unlock()
 	rawJsonString, err := json.Marshal(dbStructure)

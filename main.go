@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"log"
 	"net/http"
 
@@ -36,9 +37,14 @@ func main() {
 	// Namesapce : api
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("GET /api/reset", apiCfg.handlerReset)
+
+	// Namesapce : api/chirps
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirpById)
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerPostChirps)
+
+	// Namesapce : api/users
+	mux.HandleFunc("POST /api/users", apiCfg.handlerPostUsers)
 
 	//Namespace : admin
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerAdminMetrics)
@@ -47,6 +53,10 @@ func main() {
 		Addr:    ":" + port,
 		Handler: mux,
 	}
+
+	flag.Bool("debug", false, "Enable debug mode")
+	// dbg := flag.Bool("debug", false, "Enable debug mode")
+	flag.Parse()
 
 	log.Printf("Serving files from %s on port: %s\n", filepathRoot, port)
 	log.Fatal(srv.ListenAndServe())
